@@ -6,6 +6,7 @@ on:
       - develop
 
 jobs:
+#test
   lint:
     runs-on: ubuntu-latest
     name: Static Code Analysis with Flake8
