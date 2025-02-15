@@ -6,27 +6,26 @@ on:
       - develop
 
 jobs:
-  # Job for static code analysis
   lint:
     runs-on: ubuntu-latest
+    name: Static Code Analysis with Flake8
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v2
         
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: "3.9"
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff flake8
-
-      - name: Run static code analysis with Flake8
+          pip install -r requirements.txt
+          pip install flake8
+      - name: Run flake8
         run: |
-          flake8 . || echo "Flake8 linter found issues, but they won't fail the pipeline."
+          flake8 . || echo "Linter failed but not blocking the pipeline" 
 
   dependency_analysis:
     runs-on: ubuntu-latest
