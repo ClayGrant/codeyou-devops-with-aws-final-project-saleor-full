@@ -20,12 +20,13 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install flake8
+
       - name: Run flake8
         run: |
-          flake8 . || echo "Linter failed but not blocking the pipeline" 
+          flake8 . || echo "Linter failed but not blocking the pipeline"
 
   dependency_analysis:
     runs-on: ubuntu-latest
