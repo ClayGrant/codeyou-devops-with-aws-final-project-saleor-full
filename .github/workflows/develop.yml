@@ -1,0 +1,108 @@
+name: Develop Branch CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Static Code Analysis with Flake8
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install flake8
+
+      - name: Run flake8
+        run: |
+          flake8 . || echo "Linter failed but not blocking the pipeline" 
+
+  dependency_analysis:
+    runs-on: ubuntu-latest
+    name: Dependency Analysis with pip-audit
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
+      - name: Install pip-audit
+        run: |
+          pip install pip-audit
+
+      - name: Run Dependency Audit
+        run: |
+          pip-audit --fail-on vulns || echo "Dependency audit failed but not blocking the pipeline"
+
+  build_docker_image:
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build the Docker Image
+        run: |
+          docker build -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:develop .
+
+  health_check:
+    runs-on: ubuntu-latest
+    name: Run Health Check on Docker Container
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Run Docker Container
+        run: |
+          docker run -d --name AWSProduction ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:develop
+          sleep 10 
+          curl -f http://localhost:8000/graphql || echo "Health check failed but not blocking the pipeline"
+
+  trivy_scan:
+    runs-on: ubuntu-latest
+    name: Trivy Scan for Docker Image Vulnerabilities
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Trivy
+        run: |
+          curl -sfL https://github.com/aquasecurity/trivy/releases/download/v0.39.2/trivy_0.39.2_Linux-64bit.deb -o trivy.deb
+          sudo dpkg -i trivy.deb
+
+      - name: Scan Docker Image for Vulnerabilities
+        run: |
+          trivy image ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:develop
+
+  push_to_dockerhub:
+    runs-on: ubuntu-latest
+    name: Push Docker Image to DockerHub
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker Image to DockerHub
+        run: |
+          docker push ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:develop

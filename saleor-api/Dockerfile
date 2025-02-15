@@ -17,22 +17,30 @@ RUN apt-get update && apt-get install -y \
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
     mv /root/.local/bin/poetry /usr/local/bin/poetry
 
+WORKDIR /app
 RUN poetry config virtualenvs.create false
 
-WORKDIR /app
+RUN useradd -m saleor
+#USER saleor
+RUN mkdir -p /app/media /app/static 
+#&& chown -R saleor:saleor /app
+#WORKDIR /app
 COPY pyproject.toml poetry.lock /app/
+COPY . .
 
 RUN poetry install --no-root
 
-RUN useradd -m saleor
-USER saleor
-WORKDIR /app
+#RUN useradd -m saleor
+#USER saleor
+#WORKDIR /app
 
 ARG STATIC_URL
 ENV STATIC_URL=${STATIC_URL:-/static/}
 
-RUN SECRET_KEY=dummy STATIC_URL=${STATIC_URL} python3 /codeyou-devops-with-aws-final-project-saleor-full/saleor-api/manage.py collectstatic --no-input
+RUN SECRET_KEY=dummy STATIC_URL=${STATIC_URL} python3 ./manage.py collectstatic --no-input
 
 EXPOSE 8000
+
+ENV PYTHONUNBUFFERED=1
 
 CMD ["gunicorn", "--bind", ":8000", "--workers", "4", "--worker-class", "saleor.asgi.gunicorn_worker.UvicornWorker", "saleor.asgi:application"]

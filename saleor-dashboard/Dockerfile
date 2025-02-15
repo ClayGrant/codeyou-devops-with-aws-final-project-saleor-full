@@ -10,18 +10,18 @@ ENV CI=1
 
 RUN npm ci --legacy-peer-deps
 
-COPY ./nginx /nginx
-COPY ./assets /assets
-COPY ./locale /locale
-COPY ./scripts /scripts
-COPY ./src /src
-COPY ./vite.config.js /vite.config.js
-COPY ./tsconfig.json /tsconfig.json
+COPY ./nginx ./nginx
+COPY ./assets ./assets
+COPY ./locale ./locale
+COPY ./scripts ./scripts
+COPY ./src ./src
+COPY ./vite.config.js ./vite.config.js
+COPY ./tsconfig.json ./tsconfig.json
 COPY ./*.d.ts ./
-COPY ./schema.graphql /schema.graphql
-COPY ./introspection.json /introspection.json
-COPY ./introspection*.json /introspection*.json
-COPY ./.featureFlags /featureFlags
+COPY ./schema.graphql ./schema.graphql
+COPY ./introspection.json ./introspection.json
+COPY ./introspection*.json ./introspection*.json
+COPY ./.featureFlags ./.featureFlags
 
 ARG API_URL
 ARG APP_MOUNT_URI

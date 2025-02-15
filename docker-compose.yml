@@ -3,21 +3,20 @@ version: '3.8'
 services:
   api:
     build:
-      context: .
-      dockerfile: ./saleor-api/Dockerfile
-    image: yourusername/saleor-api:latest
+      context: ./saleor-api
+      dockerfile: Dockerfile
+    image: ClayGrant/saleor-api:latest
     ports:
       - "8000:8000"
     environment:
       - ALLOWED_HOSTS=localhost,api,dashboard
       - JAEGER_AGENT_HOST=jaeger
       - DASHBOARD_URL=http://dashboard:9000
-    volumes:
-      - saleor-media:/app/media
+    #volumes:
+    #  - saleor-media:/app/media
     depends_on:
       - db
       - redis
-      - jaeger
     networks:
       - saleor-backend-tier
     healthcheck:
@@ -29,9 +28,9 @@ services:
 
   dashboard:
     build:
-      context: .
-      dockerfile: ./saleor-dashboard/Dockerfile
-    image: yourusername/saleor-dashboard:latest
+      context: ./saleor-dashboard
+      dockerfile: Dockerfile
+    image: ClayGrant/saleor-dashboard:latest
     ports:
       - "9000:9000"
     depends_on:
