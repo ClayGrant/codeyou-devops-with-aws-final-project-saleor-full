@@ -110,6 +110,7 @@ jobs:
 #          trivy image ClayGrant/saleor-api:develop
 #          trivy image ClayGrant/saleor-dashboard:develop
 
+#test
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
