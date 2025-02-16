@@ -110,7 +110,7 @@ jobs:
 #          trivy image ClayGrant/saleor-api:develop
 #          trivy image ClayGrant/saleor-dashboard:develop
 
-#test
+#tes
   build_and_push:
     runs-on: ubuntu-latest
     name: Build, Push, and Scan Docker Images
