@@ -80,8 +80,8 @@ jobs:
 
       - name: Push Docker Image to DockerHub
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/saleor-api:develop
-          docker push ${{ secrets.DOCKER_USERNAME }}/saleor-dashboard:develop
+          docker push ClayGrant/saleor-api:develop
+          docker push ClayGrant/saleor-dashboard:develop
 
   health_check:
     runs-on: ubuntu-latest
@@ -107,5 +107,5 @@ jobs:
 
       - name: Scan Docker image with Trivy
         run: |
-          trivy image ${{ secrets.DOCKER_USERNAME }}/saleor-api:develop
-          trivy image ${{ secrets.DOCKER_USERNAME }}/saleor-dashboard:develop
+          trivy image ClayGrant/saleor-api:develop
+          trivy image ClayGrant/saleor-dashboard:develop
