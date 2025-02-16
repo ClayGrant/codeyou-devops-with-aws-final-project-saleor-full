@@ -6,7 +6,7 @@ on:
       - production  
 
 jobs:
-  ensure-staging-completeness:
+  ensure_staging_completeness:
     runs-on: ubuntu-latest
 
     steps:
@@ -53,9 +53,9 @@ jobs:
         docker tag ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:production ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:latest
         docker push ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:latest
 
-  aws-deployment:
+  aws_deployment:
     runs-on: ubuntu-latest
-    needs: ensure-staging-completeness
+    needs: ensure_staging_completeness
 
     steps:
     - name: Checkout Repository
