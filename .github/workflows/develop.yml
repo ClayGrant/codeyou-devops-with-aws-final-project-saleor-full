@@ -60,6 +60,9 @@ jobs:
         run: |
           docker build --no-cache -t ClayGrant/saleor-api:develop ./saleor-api
           docker build --no-cache -t ClayGrant/saleor-dashboard:develop ./saleor-dashboard
+      - name: List Docker Images
+        run: docker images
+
 
 #tes
   push_to_dockerhub:
