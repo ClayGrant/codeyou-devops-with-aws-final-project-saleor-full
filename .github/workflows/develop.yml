@@ -58,8 +58,8 @@ jobs:
 
       - name: Build the Docker Images
         run: |
-          docker build --no-cache -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full/saleor-api:develop .
-          docker build --no-cache -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full/saleor-dashboard:develop .
+          docker build --no-cache -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full/saleor-api:develop ./saleor-api
+          docker build --no-cache -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full/saleor-dashboard:develop ./saleor-dashboard
 
   health_check:
     runs-on: ubuntu-latest
