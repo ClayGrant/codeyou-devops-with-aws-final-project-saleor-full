@@ -1,81 +1,83 @@
 services:
   api:
+    image: saleor-api
     build:
       context: ./saleor-api
       dockerfile: Dockerfile
-    image: ClayGrant/saleor-api:latest
-    ports:
-      - "8000:8000"
     env_file:
       - common.env
       - backend.env
-    #volumes:
-    #  - saleor-media:/app/media
+    ports:
+      - "8000:8000"
     depends_on:
       - db
       - redis
+    volumes:
+      - saleor-media:/app/media 
     networks:
       - saleor-backend-tier
-    #healthcheck:
-    #  test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-    #  interval: 30s
-    #  timeout: 10s
-    #  retries: 3
-    #restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8000/health/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 120s
 
   dashboard:
+    image: saleor-dashboard
     build:
       context: ./saleor-dashboard
       dockerfile: Dockerfile
-    image: ClayGrant/saleor-dashboard:latest
     ports:
-      - "9000:9000"
+      - "9000:80"
+    restart: unless-stopped
     depends_on:
       - api
     networks:
       - saleor-backend-tier
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:80 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   db:
     image: postgres:15-alpine
-    container_name: saleor-db
     environment:
       - POSTGRES_USER=saleor
       - POSTGRES_PASSWORD=saleor
-    volumes:
-      - saleor-db:/var/lib/postgresql/data
-      - ./saleor-db/replica_user.sql:/docker-entrypoint-initdb.d/replica_user.sql
     ports:
       - "5432:5432"
+    volumes:
+      - saleor-db:/var/lib/postgresql/data
+      - ./replica_user.sql:/docker-entrypoint-initdb.d/replica_user.sql
+    restart: unless-stopped
     networks:
       - saleor-backend-tier
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "saleor"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
+      test: ["CMD-SHELL", "pg_isready -U saleor -d saleor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   redis:
     image: redis:7.0-alpine
-    container_name: saleor-redis
-    volumes:
-      - saleor-redis:/data
     ports:
       - "6379:6379"
+    volumes:
+      - saleor-redis:/data
+    restart: unless-stopped
     networks:
       - saleor-backend-tier
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
+      test: ["CMD-SHELL", "redis-cli ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 
   jaeger:
     image: jaegertracing/all-in-one:1.20.0
@@ -117,4 +119,3 @@ volumes:
 
 networks:
   saleor-backend-tier:
-    driver: bridge
