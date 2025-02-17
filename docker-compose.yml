@@ -8,10 +8,9 @@ services:
     image: ClayGrant/saleor-api:latest
     ports:
       - "8000:8000"
-    environment:
-      - ALLOWED_HOSTS=localhost,api,dashboard
-      - JAEGER_AGENT_HOST=jaeger
-      - DASHBOARD_URL=http://dashboard:9000
+    env_file:
+      - common.env
+      - backend.env
     #volumes:
     #  - saleor-media:/app/media
     depends_on:
@@ -49,7 +48,7 @@ services:
     container_name: saleor-db
     environment:
       - POSTGRES_USER=saleor
-      - POSTGRES_PASSWORD=saleorpassword
+      - POSTGRES_PASSWORD=saleor
     volumes:
       - saleor-db:/var/lib/postgresql/data
       - ./saleor-db/replica_user.sql:/docker-entrypoint-initdb.d/replica_user.sql
