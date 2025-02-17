@@ -39,7 +39,7 @@ jobs:
               console.log('Available workflows:', workflows.data.workflows.map(w => w.name));
               
               // Find the staging workflow
-              const stagingWorkflow = workflows.data.workflows.find(w => w.name === 'saleor pipeline -staging');
+              const stagingWorkflow = workflows.data.workflows.find(w => w.name === 'CI/CD Pipeline for Staging');
               
               if (!stagingWorkflow) {
                 core.setFailed('Could not find staging workflow');
@@ -65,7 +65,7 @@ jobs:
               const latestRun = stagingWorkflows.data.workflow_runs[0];
               if (latestRun.conclusion !== 'success') {
                 core.setFailed('Latest staging workflow did not succeed');
-                return;
+                
               }
             } catch (error) {
               console.log('Error details:', error);
