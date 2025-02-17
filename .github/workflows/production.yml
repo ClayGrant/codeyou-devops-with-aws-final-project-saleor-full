@@ -3,78 +3,105 @@ name: CI/CD Pipeline for Production
 on:
   push:
     branches:
-      - production  
+      - master
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  API_IMAGE: saleor-api
+  DASHBOARD_IMAGE: saleor-dashboard
+  IMAGE_TAG: latest
 
 jobs:
-  ensure_staging_completeness:
+  verify-staging:
+    name: "Verify Staging Status"
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Staging Workflow Status
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const [owner, repo] = process.env.GITHUB_REPOSITORY.split('/');
+            console.log('Looking for staging workflow in:', owner, repo);
+            
+            try {
+              // First, list all workflows
+              const workflows = await github.rest.actions.listRepoWorkflows({
+                owner: owner,
+                repo: repo
+              });
+              
+              console.log('Available workflows:', workflows.data.workflows.map(w => w.name));
+              
+              // Find the staging workflow
+              const stagingWorkflow = workflows.data.workflows.find(w => w.name === 'saleor pipeline -staging');
+              
+              if (!stagingWorkflow) {
+                core.setFailed('Could not find staging workflow');
+                return;
+              }
+              
+              console.log('Found staging workflow:', stagingWorkflow.id);
+              
+              // Now get the runs using the workflow ID
+              const stagingWorkflows = await github.rest.actions.listWorkflowRuns({
+                owner: owner,
+                repo: repo,
+                workflow_id: stagingWorkflow.id,
+                branch: 'staging',
+                per_page: 1
+              });
+              
+              if (stagingWorkflows.data.workflow_runs.length === 0) {
+                core.setFailed('No staging workflow runs found');
+                return;
+              }
+              
+              const latestRun = stagingWorkflows.data.workflow_runs[0];
+              if (latestRun.conclusion !== 'success') {
+                core.setFailed('Latest staging workflow did not succeed');
+                return;
+              }
+            } catch (error) {
+              console.log('Error details:', error);
+              core.setFailed(`Failed to verify staging workflow: ${error.message}`);
+            }
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v2
-
-    - name: Cache Docker layers
-      uses: actions/cache@v2
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-docker-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-docker-
-
-    - name: Run Tests and Checks
-      run: |
-        # Example command to run tests (replace with your test commands)
-        npm install  # or pip install, etc.
-        npm test     # or pytest, etc.
-        # Additional checks can be added here
-
-    - name: Build Docker Image
-      run: |
-        docker build -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:production .
-
-    - name: Log in to DockerHub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Push Docker Image to DockerHub (production tag)
-      run: |
-        docker push ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:production
-
-    - name: Push Docker Image to DockerHub (latest tag)
-      run: |
-        docker tag ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:production ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:latest
-        docker push ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:latest
-
-  aws_deployment:
+  build-and-deploy:
+    name: "Build, Push, and Deploy"
+    needs: verify-staging
     runs-on: ubuntu-latest
-    needs: ensure_staging_completeness
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Set up AWS CLI
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        region: ${{ secrets.AWS_REGION }}
+      - name: Build Docker Images
+        run: |
+          docker build -t $DOCKER_USERNAME/$API_IMAGE:$IMAGE_TAG $API_IMAGE
+          docker build -t $DOCKER_USERNAME/$DASHBOARD_IMAGE:$IMAGE_TAG $DASHBOARD_IMAGE
 
-    # Deploy the Docker image to AWS (example for ECS)
-    - name: Deploy to AWS (ECS, ECR, etc.)
-      run: |
-
-        docker pull ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:latest
-        #Example command to push to AWS ECR (assuming the AWS ECR repo exists)
-        aws ecr create-repository --repository-name your-app-name --region ${{ secrets.AWS_REGION }} || echo "Repository already exists"
-        docker tag your-dockerhub-username/your-app-name:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/your-app-name:latest
-        $(aws ecr get-login --no-include-email --region ${{ secrets.AWS_REGION }})
-        docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/your-app-name:latest
+      - name: Push Docker Images
+        run: |
+          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+          docker push $DOCKER_USERNAME/$API_IMAGE:$IMAGE_TAG
+          docker push $DOCKER_USERNAME/$DASHBOARD_IMAGE:$IMAGE_TAG
+          
+  update-ecs:
+    name: Update ECS Service
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Update ECS Service
+        run: |
+          aws ecs update-service --cluster ${{ secrets.ECS_CLUSTER_NAME }} --service ${{ secrets.ECS_SERVICE_NAME }} --force-new-deployment
