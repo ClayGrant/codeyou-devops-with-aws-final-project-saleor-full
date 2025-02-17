@@ -3,65 +3,92 @@ name: CI/CD Pipeline for Staging
 on:
   push:
     branches:
-      - staging  
+      - staging
+  pull_request:
+    branches:
+      - staging
+  workflow_dispatch:
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+  API_IMAGE: saleor-api
+  DASHBOARD_IMAGE: saleor-dashboard
+  IMAGE_TAG: staging
+
 jobs:
-  validate-and-build:
+  analysis:
+    name: "Images & Healthchecks"
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      - name: Build Docker Image
+        run: |
+          docker build -t $DOCKER_USERNAME/$API_IMAGE:$IMAGE_TAG $API_IMAGE
+          docker build -t $DOCKER_USERNAME/$DASHBOARD_IMAGE:$IMAGE_TAG $DASHBOARD_IMAGE
+          
+      - name: Install Trivy
+        run: |
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
 
-    - name: Set up Docker
-      uses: docker/setup-buildx-action@v2
+      - name: Scan Docker Images
+        run: |
+          trivy image $DOCKER_USERNAME/$API_IMAGE:$IMAGE_TAG > api_security_scan.txt || true
+          trivy image $DOCKER_USERNAME/$DASHBOARD_IMAGE:$IMAGE_TAG > dashboard_security_scan.txt || true
+          echo "Security scan completed - check logs for results"
+          cat api_security_scan.txt
+          cat dashboard_security_scan.txt
 
-    - name: Cache Docker layers
-      uses: actions/cache@v2
-      with:
-        path: /tmp/.buildx-cache
-        key: ${{ runner.os }}-docker-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-docker-
+      - name: Docker Compose Up Database
+        run: docker compose up -d db
+      
+      - name: Migrations
+        run: |
+          echo "Waiting for database"
+          sleep 10        
+          docker compose run --rm api python manage.py migrate --noinput
+          docker compose run --rm api python manage.py populatedb --createsuperuser
 
-    - name: Docker Compose Up for Validation
-      run: |
-        docker-compose -f docker-compose.yml up -d
-        docker-compose ps  # Verify the containers are up
+      - name: Docker Compose Up
+        run: docker compose up -d
 
-    - name: Wait for Service Readiness (Health Check)
-      run: |
-        # Assuming your service is running on port 80
-        echo "Waiting for service to be healthy..."
-        for i in {1..30}; do
-          if curl -s http://localhost:80/health_check_endpoint; then
-            echo "Service is healthy"
-            break
-          fi
-          echo "Service not ready, retrying..."
-          sleep 5
-        done
-        if [ $i -eq 30 ]; then
-          echo "Service failed to start within the expected time"
-          exit 1
-        fi
+      - name: Healthcheck
+        timeout-minutes: 5
+        run: |
+          while true; do
+            echo "\n--- Container Status ---"
+            docker compose ps
+            
+            echo "\n--- Recent API Logs ---"
+            docker compose logs --tail=20 api
+            
+            echo "\n--- Recent Dashboard Logs ---"
+            docker compose logs --tail=10 dashboard
+            
+            echo "\n--- Database Status ---"
+            docker compose logs --tail=10 db
+            
+            if [ "$(docker compose ps -a --format '{{json .}}' | jq -r 'select(.State == null or .State != "running" or (.Health != null and .Health != "healthy")) | .Name' | wc -l)" = "0" ]; then
+              echo "All containers are healthy."
+              break
+            fi
+            
+            echo "\nWaiting for containers to be healthy..."
+            sleep 10
+          done
 
-    - name: Docker Compose Down
-      run: |
-        docker-compose down
+      - name: Docker Compose Down
+        run: docker compose down
 
-    - name: Build Docker Image
-      run: |
-        docker build -t ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:staging .
-
-    - name: Log in to DockerHub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Push Docker Image to DockerHub
-      run: |
-        docker push ClayGrant/codeyou-devops-with-aws-final-project-saleor-full:staging
+      - name: Push Docker Images
+        if: github.event_name == 'push'
+        run: |
+          echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+          docker push $DOCKER_USERNAME/$API_IMAGE:$IMAGE_TAG
+          docker push $DOCKER_USERNAME/$DASHBOARD_IMAGE:$IMAGE_TAG
